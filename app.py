@@ -1,54 +1,79 @@
 import os
+import json
 import logging
-import threading
-from flask import Flask
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
+from flask import Flask, request, Response
+import requests
 
 # --- Настройки ---
 TOKEN = os.environ.get("BOT_TOKEN")
 if not TOKEN:
     raise ValueError("Переменная окружения BOT_TOKEN не найдена!")
 
+# URL твоего бота на Render
+RENDER_URL = os.environ.get('RENDER_EXTERNAL_URL', 'https://dog-bot-8gvc.onrender.com')
+WEBHOOK_URL = f"{RENDER_URL}/webhook"
+
 logging.basicConfig(level=logging.INFO)
 
-# --- Flask приложение для "живучести" ---
-flask_app = Flask(__name__)
+# --- Flask приложение ---
+app = Flask(__name__)
 
-@flask_app.route('/')
+# --- Функции для работы с Telegram API ---
+def send_message(chat_id, text):
+    """Отправляет сообщение пользователю"""
+    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+    payload = {"chat_id": chat_id, "text": text}
+    try:
+        requests.post(url, json=payload, timeout=10)
+    except Exception as e:
+        logging.error(f"Ошибка отправки: {e}")
+
+# --- Основная логика бота ---
+def handle_update(update):
+    """Обрабатывает входящее обновление от Telegram"""
+    try:
+        if 'message' in update:
+            chat_id = update['message']['chat']['id']
+            text = update['message'].get('text', '')
+            
+            if text == '/start':
+                send_message(chat_id, "Привет! Я бот, который работает на Render через Webhook 🚀")
+            else:
+                send_message(chat_id, f"Ты написал: {text}")
+    except Exception as e:
+        logging.error(f"Ошибка в handle_update: {e}")
+
+# --- Эндпоинты для Render и Telegram ---
+@app.route('/')
 def index():
-    return "✅ Бот Doge_foge_bot работает"
+    return "✅ Бот Doge_foge_bot работает через Webhook!"
 
-@flask_app.route('/health')
+@app.route('/health')
 def health():
     return "OK", 200
 
-# --- Функция для запуска бота (в отдельном потоке)---
-def run_bot():
-    # Создаём приложение бота
-    app = ApplicationBuilder().token(TOKEN).build()
-
-    # Обработчики команд
-    async def start(update: Update, context):
-        await update.message.reply_text("Привет! Я работаю на Render 24/7 🚀")
-
-    async def echo(update: Update, context):
-        user_text = update.message.text
-        await update.message.reply_text(f"Ты написал: {user_text}")
-
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
-
-    # Запускаем бота (polling)
-    print("🤖 Бот запущен и слушает сообщения...")
-    app.run_polling()
+@app.route(f'/webhook', methods=['POST'])
+def webhook():
+    """Точка входа для сообщений от Telegram"""
+    try:
+        update = request.get_json()
+        if update:
+            handle_update(update)
+        return Response("OK", status=200)
+    except Exception as e:
+        logging.error(f"Webhook error: {e}")
+        return Response("Error", status=500)
 
 # --- Точка входа ---
 if __name__ == '__main__':
-    # Запускаем бота в фоновом потоке
-    bot_thread = threading.Thread(target=run_bot)
-    bot_thread.start()
+    # Устанавливаем вебхук для Telegram
+    set_webhook_url = f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={WEBHOOK_URL}"
+    try:
+        response = requests.get(set_webhook_url, timeout=10)
+        logging.info(f"Webhook установлен: {response.json()}")
+    except Exception as e:
+        logging.error(f"Ошибка установки вебхука: {e}")
 
-    # Запускаем Flask сервер (в главном потоке)
+    # Запускаем Flask сервер
     port = int(os.environ.get('PORT', 5000))
-    flask_app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=port)

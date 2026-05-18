@@ -9,44 +9,31 @@ TOKEN = os.environ.get("BOT_TOKEN")
 if not TOKEN:
     raise ValueError("Переменная окружения BOT_TOKEN не найдена!")
 
-# URL твоего бота на Render
-RENDER_URL = os.environ.get('RENDER_EXTERNAL_URL', 'https://dog-bot-8gvc.onrender.com')
+# URL твоего бота на Render (замени, если другой)
+RENDER_URL = "https://dog-bot-8gvc.onrender.com"
 WEBHOOK_URL = f"{RENDER_URL}/webhook"
 
 logging.basicConfig(level=logging.INFO)
 
-# --- Flask приложение ---
+# --- Flask ---
 app = Flask(__name__)
 
-# --- Функции для работы с Telegram API ---
 def send_message(chat_id, text):
-    """Отправляет сообщение пользователю"""
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    payload = {"chat_id": chat_id, "text": text}
-    try:
-        requests.post(url, json=payload, timeout=10)
-    except Exception as e:
-        logging.error(f"Ошибка отправки: {e}")
+    requests.post(url, json={"chat_id": chat_id, "text": text}, timeout=10)
 
-# --- Основная логика бота ---
 def handle_update(update):
-    """Обрабатывает входящее обновление от Telegram"""
-    try:
-        if 'message' in update:
-            chat_id = update['message']['chat']['id']
-            text = update['message'].get('text', '')
-            
-            if text == '/start':
-                send_message(chat_id, "Привет! Я бот, который работает на Render через Webhook 🚀")
-            else:
-                send_message(chat_id, f"Ты написал: {text}")
-    except Exception as e:
-        logging.error(f"Ошибка в handle_update: {e}")
+    if 'message' in update:
+        chat_id = update['message']['chat']['id']
+        text = update['message'].get('text', '')
+        if text == '/start':
+            send_message(chat_id, "Привет! Я работаю на Render и не сплю 🚀")
+        else:
+            send_message(chat_id, f"Ты написал: {text}")
 
-# --- Эндпоинты для Render и Telegram ---
 @app.route('/')
 def index():
-    return "✅ Бот Doge_foge_bot работает через Webhook!"
+    return "✅ Бот Doge_foge_bot работает"
 
 @app.route('/health')
 def health():
@@ -54,7 +41,6 @@ def health():
 
 @app.route(f'/webhook', methods=['POST'])
 def webhook():
-    """Точка входа для сообщений от Telegram"""
     try:
         update = request.get_json()
         if update:
@@ -64,16 +50,10 @@ def webhook():
         logging.error(f"Webhook error: {e}")
         return Response("Error", status=500)
 
-# --- Точка входа ---
 if __name__ == '__main__':
-    # Устанавливаем вебхук для Telegram
-    set_webhook_url = f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={WEBHOOK_URL}"
-    try:
-        response = requests.get(set_webhook_url, timeout=10)
-        logging.info(f"Webhook установлен: {response.json()}")
-    except Exception as e:
-        logging.error(f"Ошибка установки вебхука: {e}")
+    # Устанавливаем вебхук
+    resp = requests.get(f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={WEBHOOK_URL}")
+    logging.info(f"Webhook установлен: {resp.json()}")
 
-    # Запускаем Flask сервер
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)

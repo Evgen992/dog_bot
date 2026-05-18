@@ -49,6 +49,11 @@ def webhook():
     except Exception as e:
         logging.error(f"Webhook error: {e}")
         return Response("Error", status=500)
+@app.route('/set_webhook')
+def set_webhook():
+    url = f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={WEBHOOK_URL}"
+    r = requests.get(url)
+    return r.json()
 
 if __name__ == '__main__':
     # Устанавливаем вебхук

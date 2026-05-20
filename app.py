@@ -21,6 +21,15 @@ app = Flask(__name__)
 def send_message(chat_id, text):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     requests.post(url, json={"chat_id": chat_id, "text": text}, timeout=10)
+def handle_help(chat_id):
+    help_text = (
+        "📋 Доступные команды:\n"
+        "/start — начать общение\n"
+        "/help — показать эту справку\n\n"
+        "📸 Также я умею обрабатывать фотографии!\n"
+        "Просто отправь мне любое фото — я отвечу."
+    )
+    send_message(chat_id, help_text)
 
 def handle_update(update):
     if 'message' in update:
@@ -28,6 +37,18 @@ def handle_update(update):
         text = update['message'].get('text', '')
         if text == '/start':
             send_message(chat_id, "Привет! Я Пёсий бот, напиши что нибудь и я отвечу эхом")
+        if text == '/start':
+            send_message(chat_id, "Привет! Я Пёсий бот, напиши что-нибудь, и я отвечу эхом")
+        if 'photo' in update['message']:
+    # Берём самое большое фото (последнее в списке)
+    photo = update['message']['photo'][-1]
+    file_id = photo['file_id']
+    file_size = photo.get('file_size', 0)
+    handle_photo(chat_id, file_id, file_size)
+    return  # выходим, чтобы не искать текст
+
+elif text == '/help':
+    handle_help(chat_id)
         else:
             send_message(chat_id, f"Ты написал: {text}")
 
@@ -62,3 +83,11 @@ if __name__ == '__main__':
 
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
+def handle_photo(chat_id, photo_file_id, file_size):
+    # Благодарим за фото и показываем его размер
+    response = (
+        f"🐕 Спасибо за фото!\n"
+        f"📎 file_id: {photo_file_id[:20]}...\n"
+        f"📦 размер: {file_size} байт"
+    )
+    send_message(chat_id, response)

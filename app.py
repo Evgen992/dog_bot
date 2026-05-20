@@ -4,63 +4,67 @@ import logging
 from flask import Flask, request, Response
 import requests
 
-# --- Настройки ---
 TOKEN = os.environ.get("BOT_TOKEN")
 if not TOKEN:
-    raise ValueError("Переменная окружения BOT_TOKEN не найдена!")
+    raise ValueError("BOT_TOKEN not set!")
 
-# URL твоего бота на Render (замени, если другой)
 RENDER_URL = "https://dog-bot-8gvc.onrender.com"
 WEBHOOK_URL = f"{RENDER_URL}/webhook"
 
 logging.basicConfig(level=logging.INFO)
 
-# --- Flask ---
 app = Flask(__name__)
 
 def send_message(chat_id, text):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    requests.post(url, json={"chat_id": chat_id, "text": text}, timeout=10)
+    try:
+        requests.post(url, json={"chat_id": chat_id, "text": text}, timeout=10)
+    except Exception as e:
+        logging.error(f"Send error: {e}")
+
+def handle_photo(chat_id, file_id, file_size):
+    send_message(chat_id, f"📸 Фото получено!\nРазмер: {file_size} байт")
+
 def handle_help(chat_id):
     help_text = (
-        "📋 Доступные команды:\n"
-        "/start — начать общение\n"
-        "/help — показать эту справку\n\n"
-        "📸 Также я умею обрабатывать фотографии!\n"
-        "Просто отправь мне любое фото — я отвечу."
+        "📋 Команды:\n"
+        "/start — приветствие\n"
+        "/help — эта справка\n\n"
+        "📷 Отправь фото — я отвечу!"
     )
     send_message(chat_id, help_text)
 
 def handle_update(update):
-    if 'message' in update:
-        chat_id = update['message']['chat']['id']
-        text = update['message'].get('text', '')
-        if text == '/start':
-            send_message(chat_id, "Привет! Я Пёсий бот, напиши что нибудь и я отвечу эхом")
-        if text == '/start':
-            send_message(chat_id, "Привет! Я Пёсий бот, напиши что-нибудь, и я отвечу эхом")
-        if 'photo' in update['message']:
-    # Берём самое большое фото (последнее в списке)
-    photo = update['message']['photo'][-1]
-    file_id = photo['file_id']
-    file_size = photo.get('file_size', 0)
-    handle_photo(chat_id, file_id, file_size)
-    return  # выходим, чтобы не искать текст
-
-elif text == '/help':
-    handle_help(chat_id)
-        else:
-            send_message(chat_id, f"Ты написал: {text}")
+    try:
+        if 'message' in update:
+            chat_id = update['message']['chat']['id']
+            
+            if 'photo' in update['message']:
+                photo = update['message']['photo'][-1]
+                file_id = photo['file_id']
+                file_size = photo.get('file_size', 0)
+                handle_photo(chat_id, file_id, file_size)
+                return
+            
+            text = update['message'].get('text', '')
+            if text == '/start':
+                send_message(chat_id, "Привет! Я Пёсий бот на Render 🐕")
+            elif text == '/help':
+                handle_help(chat_id)
+            else:
+                send_message(chat_id, f"Эхо: {text}")
+    except Exception as e:
+        logging.error(f"Update error: {e}")
 
 @app.route('/')
 def index():
-    return "✅ Бот Doge_foge_bot работает"
+    return "Бот работает", 200
 
 @app.route('/health')
 def health():
     return "OK", 200
 
-@app.route(f'/webhook', methods=['POST'])
+@app.route('/webhook', methods=['POST'])
 def webhook():
     try:
         update = request.get_json()
@@ -70,24 +74,15 @@ def webhook():
     except Exception as e:
         logging.error(f"Webhook error: {e}")
         return Response("Error", status=500)
-@app.route('/set_webhook')
-def set_webhook():
-    url = f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={WEBHOOK_URL}"
-    r = requests.get(url)
-    return r.json()
 
 if __name__ == '__main__':
-    # Устанавливаем вебхук
-    resp = requests.get(f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={WEBHOOK_URL}")
-    logging.info(f"Webhook установлен: {resp.json()}")
-
+    # Установка вебхука
+    url = f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={WEBHOOK_URL}"
+    try:
+        resp = requests.get(url, timeout=10)
+        logging.info(f"Webhook set: {resp.json()}")
+    except Exception as e:
+        logging.error(f"Webhook error: {e}")
+    
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
-def handle_photo(chat_id, photo_file_id, file_size):
-    # Благодарим за фото и показываем его размер
-    response = (
-        f"🐕 Спасибо за фото!\n"
-        f"📎 file_id: {photo_file_id[:20]}...\n"
-        f"📦 размер: {file_size} байт"
-    )
-    send_message(chat_id, response)

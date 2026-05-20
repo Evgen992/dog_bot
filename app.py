@@ -27,7 +27,8 @@ def handle_update(update):
         chat_id = update['message']['chat']['id']
         text = update['message'].get('text', '')
         if text == '/start':
-            send_message(chat_id, "Привет! Я работаю на Render и не сплю 🚀")
+            send_message(chat_id, "Привет! Я Пёсий бот, напиши что нибудь
+и я отвечу эхом")
         else:
             send_message(chat_id, f"Ты написал: {text}")
 

@@ -3,6 +3,48 @@ import json
 import logging
 from flask import Flask, request, Response
 import requests
+import requests
+
+# Функция для общения с YandexGPT
+def ask_yandex_gpt(user_message):
+    # Бери эти значения из переменных окружения!
+    folder_id = os.environ.get("FOLDER_ID")
+    api_key = os.environ.get("YANDEX_API_KEY")
+    
+    url = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
+    
+    headers = {
+        "Authorization": f"Api-Key {api_key}",
+        "Content-Type": "application/json"
+    }
+    
+    data = {
+        "modelUri": f"gpt://{folder_id}/yandexgpt-lite",
+        "completionOptions": {
+            "stream": False,
+            "temperature": 0.7,
+            "maxTokens": 2000
+        },
+        "messages": [
+            {
+                "role": "user",
+                "text": user_message
+            }
+        ]
+    }
+    
+    try:
+        response = requests.post(url, headers=headers, json=data, timeout=30)
+        result = response.json()
+        
+        if 'result' in result:
+            return result['result']['alternatives'][0]['message']['text']
+        else:
+            logging.error(f"YandexGPT error: {result}")
+            return "Извини, что-то пошло не так..."
+    except Exception as e:
+        logging.error(f"YandexGPT exception: {e}")
+        return "Ошибка подключения к нейросети 😢"
 
 TOKEN = os.environ.get("BOT_TOKEN")
 if not TOKEN:
@@ -39,6 +81,7 @@ def handle_update(update):
         if 'message' in update:
             chat_id = update['message']['chat']['id']
             
+            # Обработка фото (оставляем как есть)
             if 'photo' in update['message']:
                 photo = update['message']['photo'][-1]
                 file_id = photo['file_id']
@@ -46,13 +89,18 @@ def handle_update(update):
                 handle_photo(chat_id, file_id, file_size)
                 return
             
+            # Обработка текста
             text = update['message'].get('text', '')
+            
             if text == '/start':
-                send_message(chat_id, "Привет! Я Пёсий бот на Render 🐕")
+                send_message(chat_id, "Привет! Я Пёсий бот с ИИ 🐕\nЗадай мне любой вопрос!")
             elif text == '/help':
                 handle_help(chat_id)
             else:
-                send_message(chat_id, f"Эхо: {text}")
+                # Если не команда — отвечаем через YandexGPT
+                ai_response = ask_yandex_gpt(text)
+                send_message(chat_id, ai_response)
+                
     except Exception as e:
         logging.error(f"Update error: {e}")
 
